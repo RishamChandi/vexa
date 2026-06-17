@@ -5,7 +5,7 @@ services:
   redis:
     image: redis:7.0-alpine
     mem_limit: 512m
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync"restart: "no", "everysec"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -65,6 +65,7 @@ services:
     restart: unless-stopped
 
   minio-init:
+    restart: "no"
     image: minio/mc:latest
     depends_on:
       - minio
