@@ -1,19 +1,21 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy transcript-rendering built package
-COPY packages/transcript-rendering/package.json /transcript-rendering/package.json
-COPY packages/transcript-rendering/dist/ /transcript-rendering/dist/
+# Copy transcript-rendering built package to the same RELATIVE location the manifest references
+# ("file:../../packages/transcript-rendering") — so `npm ci` validates against the committed
+# lockfile with no path rewrite.
+COPY packages/transcript-rendering/package.json ./packages/transcript-rendering/package.json
+COPY packages/transcript-rendering/dist/ ./packages/transcript-rendering/dist/
 
-# Install dependencies (package.json only — no lockfile, to avoid path mismatch after sed)
-COPY services/dashboard/package.json ./
-RUN sed -i 's|"@vexaai/transcript-rendering": "file:../../packages/transcript-rendering"|"@vexaai/transcript-rendering": "file:/transcript-rendering"|' package.json && \
-    npm install --ignore-scripts
+# Install the exact dependency graph committed with the dashboard (lockfile in sync with
+# package.json, sharp pinned by the manifest's overrides block).
+COPY services/dashboard/package.json services/dashboard/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
 # Ensure transcript-rendering is physically copied (not symlinked)
 RUN rm -rf node_modules/@vexaai/transcript-rendering && \
-    cp -r /transcript-rendering node_modules/@vexaai/transcript-rendering
+    cp -r packages/transcript-rendering node_modules/@vexaai/transcript-rendering
 
 # Copy source code
 COPY services/dashboard/src ./src
@@ -42,7 +44,7 @@ ENV VEXA_REPO_ROOT=/repo
 RUN npm run build && npm run assert-release-version
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
